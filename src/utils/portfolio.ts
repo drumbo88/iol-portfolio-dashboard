@@ -46,6 +46,21 @@ export type OperationWithVariation = Operation & {
   variationPercent: number | null
 }
 
+export type EstimatedSaleLot = {
+  operation: Operation
+  quantity: number
+  variationAmount: number
+  variationPercent: number | null
+}
+
+export type EstimatedSale = {
+  lots: EstimatedSaleLot[]
+  totalSale: number
+  variationAmount: number
+  variationPercent: number | null
+  availableQuantity: number
+}
+
 type PurchaseLot = {
   quantity: number
   price: number
@@ -107,4 +122,62 @@ export const calculateOperationVariations = (operations: Operation[]): Operation
     variationAmount: variations.get(index)?.amount ?? null,
     variationPercent: variations.get(index)?.percent ?? null
   }))
+}
+
+export const estimateSale = (operations: Operation[], quantityToSell: number, salePrice: number): EstimatedSale => {
+  const chronological = [...operations].sort((a, b) => new Date(getOperationDate(a)).getTime() - new Date(getOperationDate(b)).getTime())
+  const lots: Array<{ operation: Operation; quantity: number; price: number }> = []
+
+  for (const operation of chronological) {
+    const code = getOperationCode(operation)
+    const quantity = getOperationQuantity(operation)
+
+    if (code === 'C' || code === 'CI') {
+      if (quantity > 0) lots.push({ operation, quantity, price: getOperationPrice(operation) })
+      continue
+    }
+
+    if (code === 'V' || code === 'VI') {
+      let remaining = quantity
+      while (remaining > 0 && lots.length > 0) {
+        const lot = lots[lots.length - 1]
+        const consumed = Math.min(remaining, lot.quantity)
+        lot.quantity -= consumed
+        remaining -= consumed
+        if (lot.quantity <= 0) lots.pop()
+      }
+    }
+  }
+
+  const availableQuantity = lots.reduce((sum, lot) => sum + lot.quantity, 0)
+  let remaining = Math.max(0, quantityToSell)
+  const affectedLots: EstimatedSaleLot[] = []
+
+  while (remaining > 0 && lots.length > 0) {
+    const lot = lots[lots.length - 1]
+    const consumed = Math.min(remaining, lot.quantity)
+    const variationAmount = consumed * (salePrice - lot.price)
+    const cost = consumed * lot.price
+    affectedLots.push({
+      operation: lot.operation,
+      quantity: consumed,
+      variationAmount,
+      variationPercent: cost ? variationAmount / cost : null
+    })
+    remaining -= consumed
+    lot.quantity -= consumed
+    if (lot.quantity <= 0) lots.pop()
+  }
+
+  const totalSale = affectedLots.reduce((sum, lot) => sum + lot.quantity * salePrice, 0)
+  const variationAmount = affectedLots.reduce((sum, lot) => sum + lot.variationAmount, 0)
+  const totalCost = affectedLots.reduce((sum, lot) => sum + lot.quantity * getOperationPrice(lot.operation), 0)
+
+  return {
+    lots: affectedLots,
+    totalSale,
+    variationAmount,
+    variationPercent: totalCost ? variationAmount / totalCost : null,
+    availableQuantity
+  }
 }
