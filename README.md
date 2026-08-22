@@ -1,16 +1,16 @@
 # IOL Portfolio Dashboard
 
-SPA React + TypeScript + Vite con backend Node/Express que mantiene las credenciales de IOL fuera del navegador.
+React + TypeScript + Vite SPA with a Node/Express backend for managing an IOL account.
 
-## Requisitos
+## Requirements
 - Node.js 20+
-- API de InvertirOnline habilitada para tu cuenta
+- InvertirOnline API enabled for your account
 
-## Ejecutar
+## Run
 
 ```bash
 cp server/.env.example server/.env
-# completar IOL_USERNAME e IOL_PASSWORD
+# fill in IOL_USERNAME and IOL_PASSWORD
 
 npm install
 npm run dev
@@ -19,9 +19,9 @@ npm run dev
 Frontend: http://localhost:5173
 Backend: http://localhost:3001
 
-El backend expone:
+The backend exposes:
 - GET /api/portfolio/argentina
 - GET /api/portfolio/estados-unidos
 - GET /api/account
 
-No incluye endpoints de compra/venta: esta primera versión es de solo lectura.
+It does not include buy/sell endpoints: this first version is read-only.
