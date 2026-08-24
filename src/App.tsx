@@ -3,6 +3,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { HoldingsTable } from './components/HoldingsTable'
 import { OperationsModal } from './components/OperationsModal'
 import { PortfolioSummary } from './components/PortfolioSummary'
+import { formatAmount, unitLabels, type DisplayRates, type DisplayUnit } from './utils/portfolio'
 import type { AccountResponse, Operation, OperationsResponse, PortfolioPosition, PortfolioResponse } from './types'
 
 export default function App() {
@@ -14,17 +15,40 @@ export default function App() {
   const [selectedPosition, setSelectedPosition] = useState<PortfolioPosition | null>(null)
   const [operations, setOperations] = useState<Operation[]>([])
   const [loadingDetails, setLoadingDetails] = useState(false)
+  const [displayUnit, setDisplayUnit] = useState<DisplayUnit>('ARS')
+  const [rates, setRates] = useState<DisplayRates>({ uva: 1, usd: 1 })
+  const displayUnits: DisplayUnit[] = ['ARS', 'UVA', 'USD']
+
+  useEffect(() => {
+    fetch('/api/rates')
+      .then(response => response.ok ? response.json() : Promise.reject(response))
+      .then(data => setRates({ uva: Number(data.uva) || 1, usd: Number(data.usd) || 1, history: data.history ?? [] }))
+      .catch(() => setError('No se pudieron obtener las cotizaciones de UVA y dólar.'))
+  }, [])
+
+  useEffect(() => {
+    const handleUnitShortcut = (event: KeyboardEvent) => {
+      if (event.altKey && event.key.toLowerCase() === 'u' && !['INPUT', 'SELECT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName)) {
+        event.preventDefault()
+        setDisplayUnit(current => displayUnits[(displayUnits.indexOf(current) + 1) % displayUnits.length])
+      }
+    }
+    window.addEventListener('keydown', handleUnitShortcut)
+    return () => window.removeEventListener('keydown', handleUnitShortcut)
+  }, [])
 
   async function load() {
     setLoading(true)
     setError('')
     try {
-      const [portfolioResponse, accountResponse] = await Promise.all([
+      const [portfolioResponse, accountResponse, operationsResponse] = await Promise.all([
         fetch(`/api/portfolio/${market}`).then(response => response.ok ? response.json() : Promise.reject(response)),
-        fetch('/api/account').then(response => response.ok ? response.json() : Promise.reject(response))
+        fetch('/api/account').then(response => response.ok ? response.json() : Promise.reject(response)),
+        fetch(`/api/operaciones?filtro.estado=terminadas&filtro.pais=${market}`).then(response => response.ok ? response.json() : Promise.reject(response))
       ])
       setPortfolio(portfolioResponse)
       setAccount(accountResponse)
+      setOperations(Array.isArray(operationsResponse?.operaciones) ? operationsResponse.operaciones : Array.isArray(operationsResponse) ? operationsResponse : [])
     } catch {
       setError('No se pudo obtener la información de IOL. Verificá las credenciales y que la API esté habilitada.')
     } finally {
@@ -62,14 +86,17 @@ export default function App() {
           <option value="argentina">Argentina</option>
           <option value="estados-unidos">Estados Unidos</option>
         </select>
+        <select value={displayUnit} onChange={event => setDisplayUnit(event.target.value as DisplayUnit)} aria-label="Unidad de visualización">
+          {displayUnits.map(unit => <option key={unit} value={unit}>{unitLabels[unit]}</option>)}
+        </select>
         <button onClick={load}>Actualizar</button>
       </div>
     </header>
 
     {error && <div className="error">{error}</div>}
     {loading ? <div className="loading">Cargando portfolio…</div> : <main>
-      <PortfolioSummary total={total} positionsCount={positions.length} account={account} />
-      <HoldingsTable positions={positions} onPositionDoubleClick={openPositionDetails} />
+      <PortfolioSummary total={total} positionsCount={positions.length} account={account} displayUnit={displayUnit} rates={rates} />
+      <HoldingsTable positions={positions} onPositionDoubleClick={openPositionDetails} displayUnit={displayUnit} rates={rates} operations={operations} />
 
       <section className="grid">
         <div className="panel"><h2>Composición</h2>
@@ -91,6 +118,8 @@ export default function App() {
       operations={operations}
       loading={loadingDetails}
       market={market}
+      displayUnit={displayUnit}
+      rates={rates}
       onClose={() => setSelectedPosition(null)}
     />}
   </div>

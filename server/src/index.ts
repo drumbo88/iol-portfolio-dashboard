@@ -32,6 +32,40 @@ app.use((req, res, next) => {
 let accessToken = ''
 let refreshToken = ''
 let expiresAt = 0
+let ratesCache: { uva: number; usd: number; history: Array<{ date: string; uva: number; usd: number }>; expiresAt: number } | null = null
+
+app.get('/api/rates', async (_, res) => {
+  try {
+    if (ratesCache && ratesCache.expiresAt > Date.now()) return res.json(ratesCache)
+
+    const [uvaResponse, usdResponse] = await Promise.all([
+      axios.get('https://api.argentinadatos.com/v1/finanzas/indices/uva'),
+      axios.get('https://api.argentinadatos.com/v1/cotizaciones/dolares/oficial')
+    ])
+    const uvaRows = Array.isArray(uvaResponse.data) ? uvaResponse.data : []
+    const usdRows = Array.isArray(usdResponse.data) ? usdResponse.data : []
+    const latestUva = uvaRows.at(-1)
+    const latestUsd = usdRows.at(-1)
+    const uva = Number(latestUva?.valor)
+    const usd = Number(latestUsd?.venta)
+    const sortedUsdRows = usdRows
+      .map(row => ({ date: String(row.fecha), value: Number(row.venta) }))
+      .filter(row => row.value > 0)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    const history = uvaRows.map(row => ({
+      date: String(row.fecha),
+      uva: Number(row.valor),
+      usd: sortedUsdRows.filter(usdRow => new Date(usdRow.date).getTime() <= new Date(String(row.fecha)).getTime()).at(-1)?.value ?? usd
+    })).filter(rate => rate.uva > 0 && rate.usd > 0)
+
+    if (!uva || !usd || !history.length) throw new Error('Las cotizaciones recibidas no son válidas')
+    ratesCache = { uva, usd, history, expiresAt: Date.now() + 1000 * 60 * 60 }
+    res.json(ratesCache)
+  } catch (error: any) {
+    console.log(`Error fetching display rates: ${error.message}`)
+    res.status(502).json({ error: 'No se pudieron obtener las cotizaciones' })
+  }
+})
 
 async function authenticate() {
   console.log('Authenticating with IOL API...')

@@ -19,6 +19,10 @@ npm run dev
 Frontend: http://localhost:5173
 Backend: http://localhost:3001
 
+## Display units
+
+Use the global dropdown to display monetary amounts in Argentine pesos (ARS), UVA, or US dollars (official exchange rate). Press `Alt+U` to switch to the next unit.
+
 The backend exposes:
 - GET /api/portfolio/argentina
 - GET /api/portfolio/estados-unidos
