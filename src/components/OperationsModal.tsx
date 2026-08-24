@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { Operation, PortfolioPosition } from '../types'
-import { calculateOperationVariations, convertAmount, estimateSale, formatAmount, formatAmountAtDate, getOperationCode, getOperationDate, getOperationPrice, getOperationQuantity, getOperationTotal, getPositionPerformance, money, pct, type DisplayRates, type DisplayUnit } from '../utils/portfolio'
+import { calculateOperationVariations, convertAmount, estimateSale, formatAmount, formatAmountAtDate, formatOperationDate, getOperationCode, getOperationDate, getOperationPrice, getOperationQuantity, getOperationTotal, getPositionPerformance, money, pct, type DisplayRates, type DisplayUnit } from '../utils/portfolio'
 
 type OperationsModalProps = {
   position: PortfolioPosition
@@ -46,14 +46,14 @@ export function OperationsModal({ position, operations, loading, market, display
         <div className="modal-main">
           <div className="detail-block">
             <h4>Operaciones</h4>
-            {loading ? <p>Cargando operaciones…</p> : displayedOperations.length ? <table className="mini-table"><thead><tr><th>Tipo</th><th>Fecha operada</th><th>Cantidad operada</th><th>Precio operado</th><th>Monto operado</th><th>Variación $</th><th>Variación %</th></tr></thead><tbody>
+            {loading ? <p>Cargando operaciones…</p> : displayedOperations.length ? <div className="table-wrap"><table><thead><tr><th>Tipo</th><th>Fecha operada</th><th>Cantidad</th><th>Precio</th><th>Monto</th><th>Variación</th><th>Variación %</th></tr></thead><tbody>
               {displayedOperations.map((operation, index) => {
                 const estimatedLot = estimatedLots.get(getOperationKey(operation))
                 const variationAmount = estimatedLot?.variationAmount ?? operation.variationAmount
                 const variationPercent = estimatedLot?.variationPercent ?? operation.variationPercent
                 return <tr key={`${operation.numero ?? 'operacion'}-${index}`}>
                 <td><span className="op-code">{getOperationCode(operation)}</span></td>
-                <td>{getOperationDate(operation)}</td>
+                <td>{formatOperationDate(getOperationDate(operation))}</td>
                 <td>{getOperationQuantity(operation).toLocaleString('es-AR')}</td>
                 <td>{formatAmountAtDate(getOperationPrice(operation), displayUnit, rates, getOperationDate(operation))}</td>
                 <td>{formatAmountAtDate(getOperationTotal(operation), displayUnit, rates, getOperationDate(operation))}</td>
@@ -61,7 +61,7 @@ export function OperationsModal({ position, operations, loading, market, display
                 <td className={variationPercent === null ? undefined : variationPercent >= 0 ? 'positive' : 'negative'}>{variationPercent === null ? '—' : pct.format(variationPercent)}</td>
               </tr>
               })}
-            </tbody></table> : <p className="empty-state">Sin operaciones registradas.</p>}
+            </tbody></table></div> : <p className="empty-state">Sin operaciones registradas.</p>}
           </div>
         </div>
 

@@ -76,6 +76,14 @@ export const getAccountAvailable = (account: AccountResponse | null) => {
 }
 
 export const getOperationDate = (operation: Operation) => String(operation.fechaOperada ?? operation.fechaOrden ?? operation.fecha ?? '—')
+export const formatOperationDate = (date: string) => {
+  const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(date)
+  const parsedDate = dateOnlyMatch
+    ? new Date(Number(dateOnlyMatch[1]), Number(dateOnlyMatch[2]) - 1, Number(dateOnlyMatch[3]))
+    : new Date(date)
+  if (!date || date === '—' || Number.isNaN(parsedDate.getTime())) return date || '—'
+  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }).format(parsedDate)
+}
 export const getOperationQuantity = (operation: Operation) => Number(operation.cantidadOperada ?? operation.cantidad ?? 0)
 export const getOperationPrice = (operation: Operation) => Number(operation.precioOperado ?? operation.precio ?? 0)
 export const getOperationTotal = (operation: Operation) => Number(operation.montoOperado ?? operation.monto ?? getOperationPrice(operation) * getOperationQuantity(operation))
