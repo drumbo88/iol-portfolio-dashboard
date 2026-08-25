@@ -29,7 +29,7 @@ export const convertAmount = (amount: number, unit: DisplayUnit, rates: DisplayR
 
 export const formatAmount = (amount: number, unit: DisplayUnit) => {
   if (unit === 'UVA') return `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(amount)} UVA`
-  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: unit, maximumFractionDigits: unit === 'ARS' ? 0 : 2 }).format(amount)
+  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: unit, maximumFractionDigits: amount >= 100 ? 0 : 2 }).format(amount)
 }
 
 export const formatAmountAtDate = (amount: number, unit: DisplayUnit, rates: DisplayRates, date: string) =>
