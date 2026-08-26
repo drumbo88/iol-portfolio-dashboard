@@ -1,4 +1,4 @@
-import type { AccountEntry, AccountResponse, Operation, PortfolioPosition } from '../types'
+import type { AccountEntry, AccountResponse, Operation, OperationWithDisplayQuantity, PortfolioPosition } from '../types'
 
 export type DisplayUnit = 'ARS' | 'UVA' | 'USD'
 
@@ -21,19 +21,21 @@ export const getRateForDate = (date: string, unit: DisplayUnit, rates: DisplayRa
   return unit === 'UVA' ? historical?.uva ?? rates.uva : historical?.usd ?? rates.usd
 }
 
-export const convertAmount = (amount: number, unit: DisplayUnit, rates: DisplayRates, date?: string) => {
-  const rate = date ? getRateForDate(date, unit, rates) : unit === 'UVA' ? rates.uva : unit === 'USD' ? rates.usd : 1
-  if (unit !== 'ARS') return rate ? amount / rate : amount
-  return amount
+export const convertAmount = (amount: number, unit: DisplayUnit, rates: DisplayRates, date?: string, unitFrom: DisplayUnit = 'ARS') => {
+  const sourceRate = date ? getRateForDate(date, unitFrom, rates) : unitFrom === 'UVA' ? rates.uva : unitFrom === 'USD' ? rates.usd : 1
+  const targetRate = date ? getRateForDate(date, unit, rates) : unit === 'UVA' ? rates.uva : unit === 'USD' ? rates.usd : 1
+  const amountInArs = unitFrom === 'ARS' ? amount : amount * sourceRate
+  return unit === 'ARS' ? amountInArs : targetRate ? amountInArs / targetRate : amountInArs
 }
 
 export const formatAmount = (amount: number, unit: DisplayUnit) => {
-  if (unit === 'UVA') return `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(amount)} UVA`
-  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: unit, maximumFractionDigits: amount >= 100 ? 0 : 2 }).format(amount)
+  const maximumFractionDigits = Math.abs(amount) >= 100 ? 0 : 2
+  if (unit === 'UVA') return `${new Intl.NumberFormat('es-AR', { maximumFractionDigits }).format(amount)} UVA`
+  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: unit, maximumFractionDigits }).format(amount)
 }
 
-export const formatAmountAtDate = (amount: number, unit: DisplayUnit, rates: DisplayRates, date: string) =>
-  formatAmount(convertAmount(amount, unit, rates, date), unit)
+export const formatAmountAtDate = (amount: number, unit: DisplayUnit, rates: DisplayRates, date: string, unitFrom: DisplayUnit = 'ARS') =>
+  formatAmount(convertAmount(amount, unit, rates, date, unitFrom), unit)
 
 export const convertPercentageForDateChange = (currentAmount: number, variationPercent: number, unit: DisplayUnit, rates: DisplayRates, previousDate: string) => {
   if (unit === 'ARS') return variationPercent
@@ -85,6 +87,8 @@ export const formatOperationDate = (date: string) => {
   return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }).format(parsedDate)
 }
 export const getOperationQuantity = (operation: Operation) => Number(operation.cantidadOperada ?? operation.cantidad ?? 0)
+export const isSplitOperation = (operation: Operation) => getOperationCode(operation) === 'SP'
+export const getDisplayedOperationQuantity = (operation: Operation) => Number((operation as OperationWithDisplayQuantity).displayQuantity ?? getOperationQuantity(operation))
 export const getOperationPrice = (operation: Operation) => Number(operation.precioOperado ?? operation.precio ?? 0)
 export const getOperationTotal = (operation: Operation) => Number(operation.montoOperado ?? operation.monto ?? getOperationPrice(operation) * getOperationQuantity(operation))
 
@@ -92,6 +96,7 @@ export const getOperationCode = (operation: Operation) => {
   const type = String(operation.tipo ?? operation.operacion ?? '').toLowerCase()
   const term = String(operation.plazo ?? '').toLowerCase()
 
+  if (operation.cantidadOperada != null && operation.precioOperado == null && operation.montoOperado == null && getOperationQuantity(operation) > 0) return 'SP'
   if (type.includes('dividend') || type.includes('dividendo') || type.includes('pago de dividend')) return 'D'
   if (type.includes('suscrip')) return 'S'
   if (type.includes('rescat')) return 'R'
@@ -109,6 +114,7 @@ export const getOperationKindLabel = (operation: Operation) => {
     D: 'Dividendo',
     S: 'Suscripción',
     R: 'Rescate',
+    SP: 'Split',
     O: 'Otra operación'
   }
   return labels[getOperationCode(operation)]
@@ -119,6 +125,8 @@ export const getPositionSymbol = (position: PortfolioPosition) => position.titul
 export type OperationWithVariation = Operation & {
   variationAmount: number | null
   variationPercent: number | null
+  displayQuantity?: number
+  displayQuantityTitle?: string
 }
 
 export type EstimatedSaleLot = {
@@ -149,8 +157,10 @@ export const calculateOperationVariations = (operations: Operation[], unit: Disp
       return dateDifference || a.index - b.index
     })
 
-  const lots: Array<PurchaseLot & { date: string }> = []
+  const lots: Array<PurchaseLot & { date: string; operationIndex: number }> = []
   const variations = new Map<number, { amount: number | null; percent: number | null }>()
+  const displayQuantities = new Map<number, number>()
+  const displayQuantityTitles = new Map<number, string>()
 
   for (const { operation, index } of chronological) {
     const code = getOperationCode(operation)
@@ -159,7 +169,27 @@ export const calculateOperationVariations = (operations: Operation[], unit: Disp
     const operationDate = getOperationDate(operation)
 
     if (code === 'C' || code === 'CI') {
-      if (quantity > 0) lots.push({ quantity, price, date: operationDate })
+      if (quantity > 0) {
+        lots.push({ quantity, price, date: operationDate, operationIndex: index })
+        displayQuantities.set(index, quantity)
+      }
+      variations.set(index, { amount: null, percent: null })
+      continue
+    }
+
+    if (code === 'SP') {
+      const heldQuantity = lots.reduce((sum, lot) => sum + lot.quantity, 0)
+      if (heldQuantity > 0 && quantity > 0) {
+        const factor = (heldQuantity + quantity) / heldQuantity
+        const splitRatio = Number(factor.toFixed(4))
+        const splitTitle = `Tenía ${heldQuantity.toLocaleString('es-AR')} y se sumaron ${quantity.toLocaleString('es-AR')} por split ${splitRatio}:1.`
+        for (const lot of lots) {
+          lot.quantity *= factor
+          lot.price /= factor
+          displayQuantities.set(lot.operationIndex, (displayQuantities.get(lot.operationIndex) ?? 0) * factor)
+          displayQuantityTitles.set(lot.operationIndex, splitTitle)
+        }
+      }
       variations.set(index, { amount: null, percent: null })
       continue
     }
@@ -198,7 +228,10 @@ export const calculateOperationVariations = (operations: Operation[], unit: Disp
   return operations.map((operation, index) => ({
     ...operation,
     variationAmount: variations.get(index)?.amount ?? null,
-    variationPercent: variations.get(index)?.percent ?? null
+    variationPercent: variations.get(index)?.percent ?? null,
+    ...(displayQuantities.has(index) && lots.some(lot => lot.operationIndex === index && lot.quantity > 0)
+      ? { displayQuantity: displayQuantities.get(index), displayQuantityTitle: displayQuantityTitles.get(index) }
+      : {})
   }))
 }
 
@@ -212,6 +245,18 @@ export const estimateSale = (operations: Operation[], quantityToSell: number, sa
 
     if (code === 'C' || code === 'CI') {
       if (quantity > 0) lots.push({ operation, quantity, price: getOperationPrice(operation), date: getOperationDate(operation) })
+      continue
+    }
+
+    if (code === 'SP') {
+      const heldQuantity = lots.reduce((sum, lot) => sum + lot.quantity, 0)
+      if (heldQuantity > 0 && quantity > 0) {
+        const factor = (heldQuantity + quantity) / heldQuantity
+        for (const lot of lots) {
+          lot.quantity *= factor
+          lot.price /= factor
+        }
+      }
       continue
     }
 

@@ -93,6 +93,11 @@ export type Operation = {
   [key: string]: unknown
 }
 
+export type OperationWithDisplayQuantity = Operation & {
+  displayQuantity?: number
+  displayQuantityTitle?: string
+}
+
 export type OperationsResponse = {
   operaciones?: Operation[]
   [key: string]: unknown
