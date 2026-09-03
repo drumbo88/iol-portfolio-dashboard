@@ -61,6 +61,19 @@ export const getPositionPerformance = (position: PortfolioPosition, operations: 
   return { amount: sale.variationAmount, percent: sale.variationPercent }
 }
 
+export const getRealizedPerformance = (position: PortfolioPosition, operations: Operation[], unit: DisplayUnit, rates: DisplayRates) => {
+  const symbol = String(position.titulo?.simbolo ?? '').toUpperCase()
+  const matchingOperations = operations.filter(operation => {
+    const operationSymbol = String(operation.titulo?.simbolo ?? operation.simbolo ?? '').toUpperCase()
+    return operationSymbol === symbol || operationSymbol.replace(/\s*US\$\s*/g, '') === symbol.replace(/\s*US\$\s*/g, '')
+  })
+  const calculatedOperations = calculateOperationVariations(matchingOperations, unit, rates)
+  const amount = calculatedOperations
+    .filter(operation => operation.variationAmount !== null && ['V', 'VI'].includes(getOperationCode(operation)))
+    .reduce((sum, operation) => sum + (operation.variationAmount ?? 0), 0)
+  return amount
+}
+
 export const getDailyVariation = (position: PortfolioPosition, unit: DisplayUnit, rates: DisplayRates) => {
   const variation = Number(position.variacionDiaria ?? 0)
   if (unit === 'ARS' || !variation) return variation
