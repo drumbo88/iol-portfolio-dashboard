@@ -72,8 +72,7 @@ export function OperationsModal({ position, operations, loading, market, display
             <label htmlFor="sale-quantity">Cantidad a vender</label>
             <input
               id="sale-quantity"
-              type="text"
-              inputMode="decimal"
+              type="number"
               value={saleQuantityInput}
               onChange={event => setSaleQuantityInput(event.target.value.replace(/[^\d.,]/g, ''))}
               placeholder="0"
