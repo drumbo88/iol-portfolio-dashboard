@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { HoldingsTable } from './components/HoldingsTable'
+import { PreviousHoldingsTable } from './components/PreviousHoldingsTable'
 import { OperationsModal } from './components/OperationsModal'
 import { PortfolioSummary } from './components/PortfolioSummary'
-import { formatAmount, unitLabels, type DisplayRates, type DisplayUnit } from './utils/portfolio'
+import { formatAmount, getPreviousPositions, unitLabels, type DisplayRates, type DisplayUnit } from './utils/portfolio'
 import type { AccountResponse, Operation, OperationsResponse, PortfolioPosition, PortfolioResponse } from './types'
 
 export default function App() {
@@ -59,6 +60,7 @@ export default function App() {
   useEffect(() => { load() }, [market])
 
   const positions = useMemo(() => portfolio?.activos ?? [], [portfolio])
+  const previousPositions = useMemo(() => getPreviousPositions(operations, positions), [operations, positions])
   const total = positions.reduce((sum, position) => sum + Number(position.valorizado ?? 0), 0)
   const chart = positions.slice().sort((a, b) => Number(b.valorizado ?? 0) - Number(a.valorizado ?? 0)).slice(0, 10)
     .map(position => ({ name: position.titulo?.simbolo ?? position.titulo?.descripcion ?? '?', value: Number(position.valorizado ?? 0) }))
@@ -97,6 +99,7 @@ export default function App() {
     {loading ? <div className="loading">Cargando portfolio…</div> : <main>
       <PortfolioSummary total={total} positionsCount={positions.length} account={account} displayUnit={displayUnit} rates={rates} />
       <HoldingsTable positions={positions} onPositionDoubleClick={openPositionDetails} displayUnit={displayUnit} rates={rates} operations={operations} />
+      <PreviousHoldingsTable positions={previousPositions} operations={operations} displayUnit={displayUnit} rates={rates} onPositionDoubleClick={openPositionDetails} />
 
       <section className="grid">
         <div className="panel"><h2>Composición</h2>

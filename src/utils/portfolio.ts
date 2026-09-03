@@ -135,6 +135,56 @@ export const getOperationKindLabel = (operation: Operation) => {
 
 export const getPositionSymbol = (position: PortfolioPosition) => position.titulo?.simbolo ?? '—'
 
+export const getPreviousPositions = (operations: Operation[], currentPositions: PortfolioPosition[]) => {
+  const normalizeSymbol = (symbol: string) => symbol.toUpperCase().replace(/\s*US\$\s*/g, '')
+  const currentSymbols = new Set(currentPositions.map(position => normalizeSymbol(getPositionSymbol(position))))
+  const symbols = new Map<string, PortfolioPosition['titulo']>()
+  const balances = new Map<string, number>()
+  const purchasedSymbols = new Set<string>()
+  const chronological = [...operations].sort((a, b) => new Date(getOperationDate(a)).getTime() - new Date(getOperationDate(b)).getTime())
+
+  for (const operation of chronological) {
+    const symbol = String(operation.titulo?.simbolo ?? operation.simbolo ?? '').trim()
+    const normalizedSymbol = normalizeSymbol(symbol)
+    if (!symbol) continue
+    if (!symbols.has(normalizedSymbol)) symbols.set(normalizedSymbol, {
+      simbolo: operation.titulo?.simbolo ?? symbol,
+      descripcion: operation.titulo?.descripcion ?? symbol,
+      pais: operation.titulo?.pais ?? '',
+      mercado: operation.titulo?.mercado ?? operation.mercado ?? '',
+      tipo: operation.titulo?.tipo ?? '',
+      plazo: operation.titulo?.plazo ?? operation.plazo ?? '',
+      moneda: operation.titulo?.moneda ?? operation.moneda ?? ''
+    })
+
+    const code = getOperationCode(operation)
+    const quantity = getOperationQuantity(operation)
+    const currentQuantity = balances.get(normalizedSymbol) ?? 0
+    if (code === 'C' || code === 'CI') {
+      purchasedSymbols.add(normalizedSymbol)
+      balances.set(normalizedSymbol, currentQuantity + quantity)
+    }
+    if (code === 'V' || code === 'VI') balances.set(normalizedSymbol, currentQuantity - quantity)
+    if (code === 'SP' && currentQuantity > 0) balances.set(normalizedSymbol, currentQuantity + quantity)
+  }
+
+  return [...symbols.entries()]
+    .filter(([symbol]) => purchasedSymbols.has(symbol) && !currentSymbols.has(symbol) && Math.abs(balances.get(symbol) ?? 0) < 0.0000001)
+    .map(([, titulo]) => ({
+      cantidad: 0,
+      comprometido: 0,
+      puntosVariacion: 0,
+      variacionDiaria: 0,
+      ultimoPrecio: 0,
+      ppc: 0,
+      gananciaPorcentaje: 0,
+      gananciaDinero: 0,
+      valorizado: 0,
+      titulo,
+      parking: null
+    }))
+}
+
 export type OperationWithVariation = Operation & {
   variationAmount: number | null
   variationPercent: number | null
