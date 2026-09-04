@@ -1,5 +1,5 @@
 import type { Operation, PortfolioPosition } from '../types'
-import { formatAmount, formatAmountAtDate, getOperationDate, getOperationPrice, getRealizedPerformance, getPositionSymbol, type DisplayRates, type DisplayUnit } from '../utils/portfolio'
+import { convertAmount, formatAmount, formatAmountAtDate, getOperationDate, getOperationPrice, getRealizedPerformance, getPositionSymbol, type DisplayRates, type DisplayUnit } from '../utils/portfolio'
 
 type PreviousHoldingsTableProps = {
   positions: PortfolioPosition[]
@@ -13,7 +13,7 @@ export function PreviousHoldingsTable({ positions, operations, displayUnit, rate
   if (!positions.length) return null
   const totalRealizedPerformance = positions.reduce((sum, position) => sum + getRealizedPerformance(position, operations, displayUnit, rates), 0)
 
-  return <section className="panel previous-holdings"><div className="table-title-row"><h2>Tenencias anteriores</h2><span>Rend. obtenidos: <strong className={totalRealizedPerformance >= 0 ? 'positive' : 'negative'}>{formatAmount(totalRealizedPerformance, displayUnit)}</strong></span></div>
+  return <section className="panel previous-holdings"><div className="table-title-row"><h2>Tenencias anteriores</h2><span>Rend. obtenidos: <strong className={totalRealizedPerformance >= 0 ? 'positive' : 'negative'}>{formatAmount(convertAmount(totalRealizedPerformance, 'ARS', rates, undefined, displayUnit), 'ARS')}</strong></span></div>
     <div className="table-wrap"><table><thead><tr>
       <th>Especie</th><th>Descripción</th><th>Precio</th><th>Var. día</th><th>Rend. obtenido</th>
     </tr></thead><tbody>
@@ -26,9 +26,9 @@ export function PreviousHoldingsTable({ positions, operations, displayUnit, rate
         return <tr key={`${getPositionSymbol(position)}-${index}`} onDoubleClick={() => onPositionDoubleClick(position)} className="row-clickable">
           <td><b>{getPositionSymbol(position)}</b></td>
           <td>{position.titulo?.descripcion ?? '—'}</td>
-          <td>{lastPricedOperation ? formatAmountAtDate(getOperationPrice(lastPricedOperation), displayUnit, rates, getOperationDate(lastPricedOperation)) : '—'}</td>
+          <td>{lastPricedOperation ? formatAmountAtDate(getOperationPrice(lastPricedOperation), 'ARS', rates, getOperationDate(lastPricedOperation)) : '—'}</td>
           <td title="No disponible para una tenencia cerrada.">—</td>
-          <td className={realizedPerformance >= 0 ? 'positive' : 'negative'}>{formatAmount(realizedPerformance, displayUnit)}</td>
+          <td className={realizedPerformance >= 0 ? 'positive' : 'negative'}>{formatAmount(convertAmount(realizedPerformance, 'ARS', rates, undefined, displayUnit), 'ARS')}</td>
         </tr>
       })}
     </tbody></table></div>

@@ -35,8 +35,6 @@ export function OperationsModal({ position, operations, loading, market, display
     const estimatedLot = estimatedLots.get(getOperationKey(operation))
     return sum + (estimatedLot?.variationAmount ?? operation.variationAmount ?? 0)
   }, 0)
-  const altDisplayUnit: DisplayUnit = displayUnit === 'ARS' ? 'UVA' : 'ARS'
-
   return <div className="modal-backdrop" onClick={onClose}>
     <div className="modal-card" onClick={event => event.stopPropagation()}>
       <div className="modal-header">
@@ -50,7 +48,7 @@ export function OperationsModal({ position, operations, loading, market, display
       <div className="modal-layout">
         <div className="modal-main">
           <div className="detail-block">
-            <div className="table-title-row"><h4>Operaciones</h4><span>Rend. obtenido: <strong className={totalOperationVariation >= 0 ? 'positive' : 'negative'}>{formatAmount(totalOperationVariation, displayUnit)}</strong></span></div>
+            <div className="table-title-row"><h4>Operaciones</h4><span>Rend. obtenido: <strong className={totalOperationVariation >= 0 ? 'positive' : 'negative'}>{formatAmount(convertAmount(totalOperationVariation, 'ARS', rates, undefined, displayUnit), 'ARS')}</strong></span></div>
             {loading ? <p>Cargando operaciones…</p> : displayedOperations.length ? <div className="table-wrap"><table><thead><tr><th>Tipo</th><th>Fecha operada</th><th>Cantidad</th><th>Precio</th><th>Monto</th><th>Var.</th><th>Var. %</th></tr></thead><tbody>
               {displayedOperations.map((operation, index) => {
                 const estimatedLot = estimatedLots.get(getOperationKey(operation))
@@ -60,9 +58,9 @@ export function OperationsModal({ position, operations, loading, market, display
                 <td><span className="op-code">{getOperationCode(operation)}</span></td>
                 <td>{formatOperationDate(getOperationDate(operation))}</td>
                 <td title={operation.displayQuantityTitle}>{getDisplayedOperationQuantity(operation).toLocaleString('es-AR')}{operation.displayQuantityTitle ? '*' : ''}</td>
-                <td>{formatAmountAtDate(getOperationPrice(operation), displayUnit, rates, getOperationDate(operation))}</td>
-                <td>{formatAmountAtDate(getOperationTotal(operation), displayUnit, rates, getOperationDate(operation))}</td>
-                <td className={variationAmount === null ? undefined : variationAmount >= 0 ? 'positive' : 'negative'}>{variationAmount === null ? '—' : formatAmount(variationAmount, displayUnit)}</td>
+                <td>{formatAmountAtDate(getOperationPrice(operation), 'ARS', rates, getOperationDate(operation))}</td>
+                <td>{formatAmountAtDate(getOperationTotal(operation), 'ARS', rates, getOperationDate(operation))}</td>
+                <td className={variationAmount === null ? undefined : variationAmount >= 0 ? 'positive' : 'negative'}>{variationAmount === null ? '—' : formatAmount(convertAmount(variationAmount, 'ARS', rates, getOperationDate(operation), displayUnit), 'ARS')}</td>
                 <td className={variationPercent === null ? undefined : variationPercent >= 0 ? 'positive' : 'negative'}>{variationPercent === null ? '—' : pct.format(variationPercent)}</td>
               </tr>
               })}
@@ -84,19 +82,18 @@ export function OperationsModal({ position, operations, loading, market, display
             {saleQuantity > saleEstimate.availableQuantity && <p className="estimator-warning">Supera la cantidad disponible.</p>}
             {saleQuantity > 0 && <>
               <div className="estimate-totals">
-                <div><span>Total venta</span><strong>{formatAmount(saleEstimate.totalSale, displayUnit)}</strong></div>
-                <div><span>Variación {displayUnit}</span><strong className={saleEstimate.variationAmount >= 0 ? 'positive' : 'negative'}>{formatAmount(saleEstimate.variationAmount, displayUnit)}</strong></div>
+                <div><span>Total venta</span><strong>{formatAmount(convertAmount(saleEstimate.totalSale, 'ARS', rates, undefined, displayUnit), 'ARS')}</strong></div>
+                <div><span>Variación</span><strong className={saleEstimate.variationAmount >= 0 ? 'positive' : 'negative'}>{formatAmount(convertAmount(saleEstimate.variationAmount, 'ARS', rates, undefined, displayUnit), 'ARS')}</strong></div>
                 <div><span>Variación %</span><strong className={saleEstimate.variationPercent === null ? undefined : saleEstimate.variationPercent >= 0 ? 'positive' : 'negative'}>{saleEstimate.variationPercent === null ? '—' : pct.format(saleEstimate.variationPercent)}</strong></div>
               </div>
             </>}
           </div>
-          <div className="stat-box"><span>Posición</span><strong>{formatAmount(convertAmount(Number(position.valorizado ?? 0), displayUnit, rates), displayUnit)}</strong></div>
-          <div className="stat-box"><span>Cotización</span><strong>{formatAmount(convertAmount(Number(position.ultimoPrecio ?? 0), displayUnit, rates), displayUnit)}</strong></div>
+          <div className="stat-box"><span>Posición</span><strong>{formatAmount(Number(position.valorizado ?? 0), 'ARS')}</strong></div>
+          <div className="stat-box"><span>Cotización</span><strong>{formatAmount(Number(position.ultimoPrecio ?? 0), 'ARS')}</strong></div>
           <div className="stat-box"><span>Cantidad</span><strong>{Number(position.cantidad ?? 0).toLocaleString('es-AR')}</strong></div>
-          <div className="stat-box"><span>Última operación</span><strong>{formatAmount(convertAmount(Math.max(...assetOperations.map(getOperationPrice), 0), displayUnit, rates), displayUnit)}</strong></div>
+          <div className="stat-box"><span>Última operación</span><strong>{formatAmount(Math.max(...assetOperations.map(getOperationPrice), 0), 'ARS')}</strong></div>
           <div className="stat-box"><span>Rendimiento</span>
-            <strong className={performance.amount >= 0 ? 'positive' : 'negative'}>{formatAmount(performance.amount, displayUnit)} ({pct.format(performance.percent ?? Number(position.gananciaPorcentaje ?? 0) / 100)})</strong>
-            <strong className={performance.percent === null || performance.percent >= 0 ? 'positive' : 'negative'}>{formatAmount(convertAmount(Number(performance.amount ?? 0), altDisplayUnit, rates, undefined, displayUnit), altDisplayUnit)}</strong>
+            <strong className={performance.amount >= 0 ? 'positive' : 'negative'}>{formatAmount(convertAmount(performance.amount, 'ARS', rates, undefined, displayUnit), 'ARS')} ({pct.format(performance.percent ?? Number(position.gananciaPorcentaje ?? 0) / 100)})</strong>
           </div>
         </aside>
       </div>
