@@ -14,6 +14,7 @@ type OperationsModalProps = {
 
 export function OperationsModal({ position, operations, loading, market, displayUnit, rates, onClose }: OperationsModalProps) {
   const [saleQuantityInput, setSaleQuantityInput] = useState('')
+  const [sort, setSort] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' })
   const symbol = position.titulo?.simbolo ?? ''
   const matchingOperations = operations.filter((operation) => {
     const operationSymbol = String(operation.titulo?.simbolo ?? operation.simbolo ?? '').toUpperCase()
@@ -31,6 +32,18 @@ export function OperationsModal({ position, operations, loading, market, display
   const displayedOperations = saleQuantity > 0
     ? assetOperations.filter(operation => estimatedLots.has(getOperationKey(operation)))
     : assetOperations
+  const sortedOperations = [...displayedOperations].sort((left, right) => {
+    const value = (operation: typeof displayedOperations[number]) => {
+      const estimatedLot = estimatedLots.get(getOperationKey(operation))
+      return { code: getOperationCode(operation), date: new Date(getOperationDate(operation)).getTime(), quantity: getOperationQuantity(operation), price: getOperationPrice(operation), total: getOperationTotal(operation), variation: estimatedLot?.variationAmount ?? operation.variationAmount ?? 0, percent: estimatedLot?.variationPercent ?? operation.variationPercent ?? 0 }
+    }
+    const leftValue = value(left)[sort.key as keyof ReturnType<typeof value>]
+    const rightValue = value(right)[sort.key as keyof ReturnType<typeof value>]
+    const difference = leftValue > rightValue ? 1 : leftValue < rightValue ? -1 : 0
+    return sort.direction === 'asc' ? difference : -difference
+  })
+  const toggleSort = (key: string) => setSort(current => ({ key, direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc' }))
+  const header = (label: string, key: string) => <th className="sortable-header" onClick={() => toggleSort(key)} onKeyDown={event => (event.key === 'Enter' || event.key === ' ') && toggleSort(key)} role="button" tabIndex={0}>{label}{sort.key === key ? ` ${sort.direction === 'asc' ? ' ↑' : ' ↓'}` : ''}</th>
   const totalOperationVariation = displayedOperations.reduce((sum, operation) => {
     const estimatedLot = estimatedLots.get(getOperationKey(operation))
     return sum + (estimatedLot?.variationAmount ?? operation.variationAmount ?? 0)
@@ -49,8 +62,8 @@ export function OperationsModal({ position, operations, loading, market, display
         <div className="modal-main">
           <div className="detail-block">
             <div className="table-title-row"><h4>Operaciones</h4><span>Rend. obtenido: <strong className={totalOperationVariation >= 0 ? 'positive' : 'negative'}>{formatAmount(convertAmount(totalOperationVariation, 'ARS', rates, undefined, displayUnit), 'ARS')}</strong></span></div>
-            {loading ? <p>Cargando operaciones…</p> : displayedOperations.length ? <div className="table-wrap"><table><thead><tr><th>Tipo</th><th>Fecha operada</th><th>Cantidad</th><th>Precio</th><th>Monto</th><th>Var.</th><th>Var. %</th></tr></thead><tbody>
-              {displayedOperations.map((operation, index) => {
+            {loading ? <p>Cargando operaciones…</p> : sortedOperations.length ? <div className="table-wrap"><table><thead><tr>{header('Tipo', 'code')}{header('Fecha operada', 'date')}{header('Cantidad', 'quantity')}{header('Precio', 'price')}{header('Monto', 'total')}{header('Var.', 'variation')}{header('Var. %', 'percent')}</tr></thead><tbody>
+              {sortedOperations.map((operation, index) => {
                 const estimatedLot = estimatedLots.get(getOperationKey(operation))
                 const variationAmount = estimatedLot?.variationAmount ?? operation.variationAmount
                 const variationPercent = estimatedLot?.variationPercent ?? operation.variationPercent

@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react'
 import type { Operation, PortfolioPosition } from '../types'
 import { convertAmount, formatAmount, formatAmountAtDate, getOperationDate, getOperationPrice, getRealizedPerformance, getPositionSymbol, type DisplayRates, type DisplayUnit } from '../utils/portfolio'
 
@@ -11,13 +12,23 @@ type PreviousHoldingsTableProps = {
 
 export function PreviousHoldingsTable({ positions, operations, displayUnit, rates, onPositionDoubleClick }: PreviousHoldingsTableProps) {
   if (!positions.length) return null
+  const [sort, setSort] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'symbol', direction: 'asc' })
   const totalRealizedPerformance = positions.reduce((sum, position) => sum + getRealizedPerformance(position, operations, displayUnit, rates), 0)
+  const sortedPositions = useMemo(() => [...positions].sort((left, right) => {
+    const value = (position: PortfolioPosition) => ({ symbol: getPositionSymbol(position), description: position.titulo?.descripcion ?? '', realized: getRealizedPerformance(position, operations, displayUnit, rates) })
+    const leftValue = value(left)[sort.key as keyof ReturnType<typeof value>]
+    const rightValue = value(right)[sort.key as keyof ReturnType<typeof value>]
+    const difference = leftValue > rightValue ? 1 : leftValue < rightValue ? -1 : 0
+    return sort.direction === 'asc' ? difference : -difference
+  }), [positions, operations, displayUnit, rates, sort])
+  const toggleSort = (key: string) => setSort(current => ({ key, direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc' }))
+  const header = (label: string, key: string) => <th className="sortable-header" onClick={() => toggleSort(key)} onKeyDown={event => (event.key === 'Enter' || event.key === ' ') && toggleSort(key)} role="button" tabIndex={0}>{label}{sort.key === key ? ` ${sort.direction === 'asc' ? ' ↑' : ' ↓'}` : ''}</th>
 
   return <section className="panel previous-holdings"><div className="table-title-row"><h2>Tenencias anteriores</h2><span>Rend. obtenidos: <strong className={totalRealizedPerformance >= 0 ? 'positive' : 'negative'}>{formatAmount(convertAmount(totalRealizedPerformance, 'ARS', rates, undefined, displayUnit), 'ARS')}</strong></span></div>
     <div className="table-wrap"><table><thead><tr>
-      <th>Especie</th><th>Descripción</th><th>Precio</th><th>Var. día</th><th>Rend. obtenido</th>
+      {header('Especie', 'symbol')}{header('Descripción', 'description')}{header('Precio', 'price')}{header('Var. día', 'daily')}{header('Rend. obtenido', 'realized')}
     </tr></thead><tbody>
-      {positions.map((position, index) => {
+      {sortedPositions.map((position, index) => {
         const symbol = getPositionSymbol(position).toUpperCase()
         const lastPricedOperation = operations
           .filter(operation => String(operation.titulo?.simbolo ?? operation.simbolo ?? '').toUpperCase() === symbol && getOperationPrice(operation) > 0)
