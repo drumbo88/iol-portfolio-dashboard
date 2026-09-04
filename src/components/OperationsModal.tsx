@@ -31,6 +31,10 @@ export function OperationsModal({ position, operations, loading, market, display
   const displayedOperations = saleQuantity > 0
     ? assetOperations.filter(operation => estimatedLots.has(getOperationKey(operation)))
     : assetOperations
+  const totalOperationVariation = displayedOperations.reduce((sum, operation) => {
+    const estimatedLot = estimatedLots.get(getOperationKey(operation))
+    return sum + (estimatedLot?.variationAmount ?? operation.variationAmount ?? 0)
+  }, 0)
   const altDisplayUnit: DisplayUnit = displayUnit === 'ARS' ? 'UVA' : 'ARS'
 
   return <div className="modal-backdrop" onClick={onClose}>
@@ -46,7 +50,7 @@ export function OperationsModal({ position, operations, loading, market, display
       <div className="modal-layout">
         <div className="modal-main">
           <div className="detail-block">
-            <h4>Operaciones</h4>
+            <div className="table-title-row"><h4>Operaciones</h4><span>Rend. obtenido: <strong className={totalOperationVariation >= 0 ? 'positive' : 'negative'}>{formatAmount(totalOperationVariation, displayUnit)}</strong></span></div>
             {loading ? <p>Cargando operaciones…</p> : displayedOperations.length ? <div className="table-wrap"><table><thead><tr><th>Tipo</th><th>Fecha operada</th><th>Cantidad</th><th>Precio</th><th>Monto</th><th>Var.</th><th>Var. %</th></tr></thead><tbody>
               {displayedOperations.map((operation, index) => {
                 const estimatedLot = estimatedLots.get(getOperationKey(operation))
