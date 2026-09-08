@@ -4,7 +4,7 @@ import { HoldingsTable } from './components/HoldingsTable'
 import { PreviousHoldingsTable } from './components/PreviousHoldingsTable'
 import { OperationsModal } from './components/OperationsModal'
 import { PortfolioSummary } from './components/PortfolioSummary'
-import { formatAmount, getPreviousPositions, unitLabels, type DisplayRates, type DisplayUnit } from './utils/portfolio'
+import { formatAmount, getPositionPerformance, getPreviousPositions, getRealizedPerformance, unitLabels, type DisplayRates, type DisplayUnit } from './utils/portfolio'
 import type { AccountResponse, Operation, OperationsResponse, PortfolioPosition, PortfolioResponse } from './types'
 
 export default function App() {
@@ -61,6 +61,9 @@ export default function App() {
 
   const positions = useMemo(() => portfolio?.activos ?? [], [portfolio])
   const previousPositions = useMemo(() => getPreviousPositions(operations, positions), [operations, positions])
+  const obtainedPerformance = positions.reduce((sum, position) => sum + getRealizedPerformance(position, operations, displayUnit, rates), 0)
+    + previousPositions.reduce((sum, position) => sum + getRealizedPerformance(position, operations, displayUnit, rates), 0)
+  const currentPerformance = positions.reduce((sum, position) => sum + getPositionPerformance(position, operations, displayUnit, rates).amount, 0)
   const total = positions.reduce((sum, position) => sum + Number(position.valorizado ?? 0), 0)
   const chart = positions.slice().sort((a, b) => Number(b.valorizado ?? 0) - Number(a.valorizado ?? 0)).slice(0, 10)
     .map(position => ({ name: position.titulo?.simbolo ?? position.titulo?.descripcion ?? '?', value: Number(position.valorizado ?? 0) }))
@@ -97,7 +100,7 @@ export default function App() {
 
     {error && <div className="error">{error}</div>}
     {loading ? <div className="loading">Cargando portfolio…</div> : <main>
-      <PortfolioSummary total={total} positionsCount={positions.length} account={account} displayUnit={displayUnit} rates={rates} />
+      <PortfolioSummary total={total} account={account} displayUnit={displayUnit} rates={rates} obtainedPerformance={obtainedPerformance} currentPerformance={currentPerformance} />
       <HoldingsTable positions={positions} onPositionDoubleClick={openPositionDetails} displayUnit={displayUnit} rates={rates} operations={operations} />
       <PreviousHoldingsTable positions={previousPositions} operations={operations} displayUnit={displayUnit} rates={rates} onPositionDoubleClick={openPositionDetails} />
 

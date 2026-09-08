@@ -5,6 +5,7 @@
 .detail-block .table-wrap{overflow-x:auto}.detail-block .table-wrap table{min-width:760px}
 .panel > .table-wrap td.positive{color:#5ee39a}.panel > .table-wrap td.negative{color:#ff8a9b}
 .detail-block .table-wrap td.positive{color:#5ee39a}.detail-block .table-wrap td.negative{color:#ff8a9b}
+.cards article strong.positive{color:#5ee39a}.cards article strong.negative{color:#ff8a9b}
 .table-title-row{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}.table-title-row h2{margin:0}.table-title-row span{color:#c4d7e9;font-size:16px;text-align:right;white-space:nowrap}.table-title-row strong{font-weight:700}.table-title-row em{font-style:normal;color:#a9c0d8}
 .table-wrap th:nth-child(n+3),.table-wrap td:nth-child(n+3){text-align:right}
 .sortable-header{cursor:pointer;user-select:none}.sortable-header:hover{color:#f3f7fb}.sortable-header:focus-visible{outline:2px solid #8ec5ff;outline-offset:-2px}
