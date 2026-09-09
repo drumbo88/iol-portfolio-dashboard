@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { Operation, PortfolioPosition } from '../types'
-import { calculateOperationVariations, convertAmount, estimateSale, formatAmount, formatAmountAtDate, formatOperationDate, getDisplayedOperationQuantity, getOperationCode, getOperationDate, getOperationPrice, getOperationQuantity, getOperationTotal, getPositionPerformance, money, pct, type DisplayRates, type DisplayUnit } from '../utils/portfolio'
+import { calculateOperationVariations, convertAmount, estimateSale, formatAmount, formatAmountAtDate, formatOperationDate, getDisplayedOperationQuantity, getOperationCode, getOperationDate, getOperationPrice, getOperationQuantity, getOperationTotal, getPositionPerformance, getRealizedPerformance, pct, type DisplayRates, type DisplayUnit } from '../utils/portfolio'
 
 type OperationsModalProps = {
   position: PortfolioPosition
@@ -30,6 +30,8 @@ export function OperationsModal({ position, operations, loading, market, display
   const salePrice = Number(salePriceInput.replace(',', '.')) || currentPrice
   const saleEstimate = useMemo(() => estimateSale(matchingOperations, saleQuantity, salePrice, displayUnit, rates), [matchingOperations, saleQuantity, salePrice, displayUnit, rates])
   const performance = getPositionPerformance(position, matchingOperations, displayUnit, rates)
+  const realizedPerformance = getRealizedPerformance(position, matchingOperations, displayUnit, rates)
+  const currentPerformance = saleQuantity > 0 ? saleEstimate.variationAmount : performance.amount
   const getOperationKey = (operation: Operation) => String(operation.numero ?? `${getOperationDate(operation)}-${operation.simbolo ?? symbol}-${getOperationPrice(operation)}`)
   const estimatedLots = useMemo(() => new Map(saleEstimate.lots.map(lot => [getOperationKey(lot.operation), lot])), [saleEstimate.lots])
   const displayedOperations = saleQuantity > 0
@@ -47,10 +49,6 @@ export function OperationsModal({ position, operations, loading, market, display
   })
   const toggleSort = (key: string) => setSort(current => ({ key, direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc' }))
   const header = (label: string, key: string) => <th className="sortable-header" onClick={() => toggleSort(key)} onKeyDown={event => (event.key === 'Enter' || event.key === ' ') && toggleSort(key)} role="button" tabIndex={0}>{label}{sort.key === key ? ` ${sort.direction === 'asc' ? ' ↑' : ' ↓'}` : ''}</th>
-  const totalOperationVariation = displayedOperations.reduce((sum, operation) => {
-    const estimatedLot = estimatedLots.get(getOperationKey(operation))
-    return sum + (estimatedLot?.variationAmount ?? operation.variationAmount ?? 0)
-  }, 0)
   return <div className="modal-backdrop" onClick={onClose}>
     <div className="modal-card" onClick={event => event.stopPropagation()}>
       <div className="modal-header">
@@ -64,7 +62,7 @@ export function OperationsModal({ position, operations, loading, market, display
       <div className="modal-layout">
         <div className="modal-main">
           <div className="detail-block">
-            <div className="table-title-row"><h4>Operaciones</h4><span>Rend. obtenido: <strong className={totalOperationVariation >= 0 ? 'positive' : 'negative'}>{formatAmount(convertAmount(totalOperationVariation, 'ARS', rates, undefined, displayUnit), 'ARS')}</strong></span></div>
+            <div className="table-title-row"><h4>Operaciones</h4><span>Rend. obtenido: <strong className={realizedPerformance >= 0 ? 'positive' : 'negative'}>{formatAmount(convertAmount(realizedPerformance, 'ARS', rates, undefined, displayUnit), 'ARS')}</strong> <em>• Rend. actuales: <strong className={currentPerformance >= 0 ? 'positive' : 'negative'}>{formatAmount(convertAmount(currentPerformance, 'ARS', rates, undefined, displayUnit), 'ARS')}</strong></em></span></div>
             {loading ? <p>Cargando operaciones…</p> : sortedOperations.length ? <div className="table-wrap"><table><thead><tr>{header('Tipo', 'code')}{header('Fecha operada', 'date')}{header('Cantidad', 'quantity')}{header('Precio', 'price')}{header('Monto', 'total')}{header('Var.', 'variation')}{header('Var. %', 'percent')}</tr></thead><tbody>
               {sortedOperations.map((operation, index) => {
                 const estimatedLot = estimatedLots.get(getOperationKey(operation))
@@ -85,35 +83,33 @@ export function OperationsModal({ position, operations, loading, market, display
         </div>
 
         <aside className="modal-side">
-          <div className="sale-estimator">
-            <h4>Estimar venta</h4>
-            <label htmlFor="sale-quantity">Cantidad a vender</label>
-            <input
-              id="sale-quantity"
-              type="number"
-              value={saleQuantityInput}
-              onChange={event => setSaleQuantityInput(event.target.value.replace(/[^\d.,]/g, ''))}
-              placeholder="0"
-            />
-            <label htmlFor="sale-price">Precio</label>
-            <input
-              id="sale-price"
-              type="number"
-              min="0"
-              step="any"
-              value={salePriceInput}
-              onChange={event => setSalePriceInput(event.target.value.replace(/[^\d.,]/g, ''))}
-              placeholder={formatAmount(currentPrice, 'ARS')}
-            />
-            {saleQuantity > saleEstimate.availableQuantity && <p className="estimator-warning">Supera la cantidad disponible.</p>}
-            {saleQuantity > 0 && <>
+          {saleQuantity > 0 && <div className="sale-estimator">
+              <h4>Estimar venta</h4>
+              <label htmlFor="sale-quantity">Cantidad a vender</label>
+              <input
+                id="sale-quantity"
+                type="number"
+                value={saleQuantityInput}
+                onChange={event => setSaleQuantityInput(event.target.value.replace(/[^\d.,]/g, ''))}
+                placeholder={Number(position.cantidad ?? 0).toString()}
+              />
+              <label htmlFor="sale-price">Precio</label>
+              <input
+                id="sale-price"
+                type="number"
+                min="0"
+                step="any"
+                value={salePriceInput}
+                onChange={event => setSalePriceInput(event.target.value.replace(/[^\d.,]/g, ''))}
+                placeholder={formatAmount(currentPrice, 'ARS')}
+              />
+              {saleQuantity > saleEstimate.availableQuantity && <p className="estimator-warning">Supera la cantidad disponible.</p>}
               <div className="estimate-totals">
                 <div><span>Total venta</span><strong>{formatAmount(convertAmount(saleEstimate.totalSale, 'ARS', rates, undefined, displayUnit), 'ARS')}</strong></div>
                 <div><span>Variación</span><strong className={saleEstimate.variationAmount >= 0 ? 'positive' : 'negative'}>{formatAmount(convertAmount(saleEstimate.variationAmount, 'ARS', rates, undefined, displayUnit), 'ARS')}</strong></div>
                 <div><span>Variación %</span><strong className={saleEstimate.variationPercent === null ? undefined : saleEstimate.variationPercent >= 0 ? 'positive' : 'negative'}>{saleEstimate.variationPercent === null ? '—' : pct.format(saleEstimate.variationPercent)}</strong></div>
               </div>
-            </>}
-          </div>
+          </div>}
           <div className="stat-box">
             <span>Posición</span><strong>{formatAmount(Number(position.valorizado ?? 0), 'ARS')}</strong>
             <span>Cotización</span><strong>{formatAmount(Number(position.ultimoPrecio ?? 0), 'ARS')}</strong>
