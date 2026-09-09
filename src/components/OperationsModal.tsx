@@ -14,6 +14,7 @@ type OperationsModalProps = {
 
 export function OperationsModal({ position, operations, loading, market, displayUnit, rates, onClose }: OperationsModalProps) {
   const [saleQuantityInput, setSaleQuantityInput] = useState('')
+  const [salePriceInput, setSalePriceInput] = useState('')
   const [sort, setSort] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' })
   const symbol = position.titulo?.simbolo ?? ''
   const matchingOperations = operations.filter((operation) => {
@@ -25,7 +26,9 @@ export function OperationsModal({ position, operations, loading, market, display
   const assetOperations = calculateOperationVariations(matchingOperations, displayUnit, rates)
     .sort((a, b) => new Date(getOperationDate(b)).getTime() - new Date(getOperationDate(a)).getTime())
   const saleQuantity = Number(saleQuantityInput.replace(',', '.')) || 0
-  const saleEstimate = useMemo(() => estimateSale(matchingOperations, saleQuantity, Number(position.ultimoPrecio ?? 0), displayUnit, rates), [matchingOperations, saleQuantity, position.ultimoPrecio, displayUnit, rates])
+  const currentPrice = Number(position.ultimoPrecio ?? 0)
+  const salePrice = Number(salePriceInput.replace(',', '.')) || currentPrice
+  const saleEstimate = useMemo(() => estimateSale(matchingOperations, saleQuantity, salePrice, displayUnit, rates), [matchingOperations, saleQuantity, salePrice, displayUnit, rates])
   const performance = getPositionPerformance(position, matchingOperations, displayUnit, rates)
   const getOperationKey = (operation: Operation) => String(operation.numero ?? `${getOperationDate(operation)}-${operation.simbolo ?? symbol}-${getOperationPrice(operation)}`)
   const estimatedLots = useMemo(() => new Map(saleEstimate.lots.map(lot => [getOperationKey(lot.operation), lot])), [saleEstimate.lots])
@@ -92,6 +95,16 @@ export function OperationsModal({ position, operations, loading, market, display
               onChange={event => setSaleQuantityInput(event.target.value.replace(/[^\d.,]/g, ''))}
               placeholder="0"
             />
+            <label htmlFor="sale-price">Precio</label>
+            <input
+              id="sale-price"
+              type="number"
+              min="0"
+              step="any"
+              value={salePriceInput}
+              onChange={event => setSalePriceInput(event.target.value.replace(/[^\d.,]/g, ''))}
+              placeholder={formatAmount(currentPrice, 'ARS')}
+            />
             {saleQuantity > saleEstimate.availableQuantity && <p className="estimator-warning">Supera la cantidad disponible.</p>}
             {saleQuantity > 0 && <>
               <div className="estimate-totals">
@@ -101,12 +114,11 @@ export function OperationsModal({ position, operations, loading, market, display
               </div>
             </>}
           </div>
-          <div className="stat-box"><span>Posición</span><strong>{formatAmount(Number(position.valorizado ?? 0), 'ARS')}</strong></div>
-          <div className="stat-box"><span>Cotización</span><strong>{formatAmount(Number(position.ultimoPrecio ?? 0), 'ARS')}</strong></div>
-          <div className="stat-box"><span>Cantidad</span><strong>{Number(position.cantidad ?? 0).toLocaleString('es-AR')}</strong></div>
-          <div className="stat-box"><span>Última operación</span><strong>{formatAmount(Math.max(...assetOperations.map(getOperationPrice), 0), 'ARS')}</strong></div>
-          <div className="stat-box"><span>Rendimiento</span>
-            <strong className={performance.amount >= 0 ? 'positive' : 'negative'}>{formatAmount(convertAmount(performance.amount, 'ARS', rates, undefined, displayUnit), 'ARS')} ({pct.format(performance.percent ?? Number(position.gananciaPorcentaje ?? 0) / 100)})</strong>
+          <div className="stat-box">
+            <span>Posición</span><strong>{formatAmount(Number(position.valorizado ?? 0), 'ARS')}</strong>
+            <span>Cotización</span><strong>{formatAmount(Number(position.ultimoPrecio ?? 0), 'ARS')}</strong>
+            <span>Cantidad</span><strong>{Number(position.cantidad ?? 0).toLocaleString('es-AR')}</strong>
+            <span>Rendimiento</span><strong className={performance.amount >= 0 ? 'positive' : 'negative'}>{formatAmount(convertAmount(performance.amount, 'ARS', rates, undefined, displayUnit), 'ARS')} ({pct.format(performance.percent ?? Number(position.gananciaPorcentaje ?? 0) / 100)})</strong>
           </div>
         </aside>
       </div>
