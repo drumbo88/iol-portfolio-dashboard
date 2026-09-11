@@ -33,6 +33,7 @@ let accessToken = ''
 let refreshToken = ''
 let expiresAt = 0
 let ratesCache: { uva: number; usd: number; history: Array<{ date: string; uva: number; usd: number }>; expiresAt: number } | null = null
+const performanceHistoryCache = new Map<string, { expiresAt: number; data: unknown }>()
 
 app.get('/api/rates', async (_, res) => {
   try {
@@ -64,6 +65,78 @@ app.get('/api/rates', async (_, res) => {
   } catch (error: any) {
     console.log(`Error fetching display rates: ${error.message}`)
     res.status(502).json({ error: 'No se pudieron obtener las cotizaciones' })
+  }
+})
+
+function monthKeys() {
+  const months: Array<{ key: string; label: string; from: string; to: string; reference?: boolean }> = []
+  const now = new Date()
+  for (let offset = 12; offset >= 0; offset -= 1) {
+    const date = new Date(now.getFullYear(), now.getMonth() - offset, 1)
+    const next = new Date(date.getFullYear(), date.getMonth() + 1, 0)
+    months.push({
+      key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
+      label: new Intl.DateTimeFormat('es-AR', { month: 'short' }).format(date).replace('.', ''),
+      from: date.toISOString().slice(0, 10),
+      to: next.toISOString().slice(0, 10),
+      reference: offset === 12
+    })
+  }
+  return months
+}
+
+function historicalCloseRows(data: any): Array<{ date: string; price: number }> {
+  const rows = Array.isArray(data) ? data : data?.series ?? data?.datos ?? data?.data ?? []
+  return (Array.isArray(rows) ? rows : []).map(row => ({
+    date: String(row.fecha ?? row.date ?? row.fechaHora ?? ''),
+    price: Number(row.ultimoPrecio ?? row.cierre ?? row.close ?? row.precio ?? row.valor ?? 0)
+  })).filter(row => row.date && row.price > 0)
+}
+
+app.get('/api/performance-history/:pais', async (req, res) => {
+  const symbols = String(req.query.simbolos ?? '').split(',').map(symbol => symbol.trim()).filter(Boolean)
+  const mercado = 'BCBA' // req.params.pais === 'estados-unidos' ? 'Estados_Unidos' : 'Argentina'
+  const months = monthKeys()
+  const ajustada = process.env.IOL_HISTORICAL_ADJUSTED?.trim() || 'SinAjustar'
+  const cacheKey = `${mercado}:${ajustada}:${symbols.sort().join(',')}`
+  const cached = performanceHistoryCache.get(cacheKey)
+  if (cached && cached.expiresAt > Date.now()) return res.json(cached.data)
+
+  try {
+    const client = await iol()
+    const template = process.env.IOL_HISTORICAL_PATH_TEMPLATE ?? '/api/v2/{market}/Titulos/{symbol}/Cotizacion/seriehistorica/{from}/{to}/{adjusted}'
+    const histories = await Promise.all(symbols.map(async symbol => {
+      const monthly = months.map(month => ({ key: month.key, label: month.label, price: null as number | null, variationPercent: null as number | null }))
+      try {
+        const path = template
+          .replace('{market}', mercado)
+          .replace('{symbol}', encodeURIComponent(symbol))
+          .replace('{from}', months[0].from)
+          .replace('{to}', months.at(-1)!.to)
+          .replace('{adjusted}', ajustada)
+        console.log('Getting historical data for %s: %s', symbol, path)
+        const response = await client.get(path)
+        const rows = historicalCloseRows(response.data).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        for (const month of monthly) {
+          const first = rows.find(row => row.date.slice(0, 7) === month.key)
+          month.price = first?.price ?? null
+        }
+        for (let index = 1; index < monthly.length; index += 1) {
+          const current = monthly[index].price
+          const previous = monthly[index - 1].price
+          monthly[index].variationPercent = current && previous ? (current / previous - 1) * 100 : null
+        }
+      } catch (error: any) {
+        console.log(`Historical series unavailable for ${symbol}: ${error.message}`)
+      }
+      return { symbol, reference: monthly[0], months: monthly.slice(1) }
+    }))
+    const data = { months: months.slice(1), histories }
+    performanceHistoryCache.set(cacheKey, { expiresAt: Date.now() + 1000 * 60 * 60, data })
+    res.json(data)
+  } catch (error: any) {
+    console.log(`Error fetching performance history: ${error.message}`)
+    res.status(error.response?.status ?? 500).json({ error: 'No se pudo obtener el historial de cotizaciones' })
   }
 })
 

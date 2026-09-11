@@ -190,6 +190,7 @@ export type OperationWithVariation = Operation & {
   variationPercent: number | null
   displayQuantity?: number
   displayQuantityTitle?: string
+  displayQuantityAddition?: number
 }
 
 export type EstimatedSaleLot = {
@@ -224,6 +225,8 @@ export const calculateOperationVariations = (operations: Operation[], unit: Disp
   const variations = new Map<number, { amount: number | null; percent: number | null }>()
   const displayQuantities = new Map<number, number>()
   const displayQuantityTitles = new Map<number, string>()
+  const displayQuantityAdditions = new Map<number, number>()
+  const activeDisplayQuantityIndexes = new Set<number>()
 
   for (const { operation, index } of chronological) {
     const code = getOperationCode(operation)
@@ -245,12 +248,16 @@ export const calculateOperationVariations = (operations: Operation[], unit: Disp
       if (heldQuantity > 0 && quantity > 0) {
         const factor = (heldQuantity + quantity) / heldQuantity
         const splitRatio = Number(factor.toFixed(4))
-        const splitTitle = `Tenía ${heldQuantity.toLocaleString('es-AR')} y se sumaron ${quantity.toLocaleString('es-AR')} por split ${splitRatio}:1.`
         for (const lot of lots) {
+          const lotQuantity = lot.quantity
+          const lotAddition = quantity * lotQuantity / heldQuantity
+          const splitTitle = `Tenía ${lotQuantity.toLocaleString('es-AR')} y se sumaron ${lotAddition.toLocaleString('es-AR')} por split ${splitRatio}:1.`
           lot.quantity *= factor
           lot.price /= factor
           displayQuantities.set(lot.operationIndex, (displayQuantities.get(lot.operationIndex) ?? 0) * factor)
           displayQuantityTitles.set(lot.operationIndex, splitTitle)
+          displayQuantityAdditions.set(lot.operationIndex, lotAddition)
+          activeDisplayQuantityIndexes.add(lot.operationIndex)
         }
       }
       variations.set(index, { amount: null, percent: null })
@@ -275,7 +282,10 @@ export const calculateOperationVariations = (operations: Operation[], unit: Disp
       coveredQuantity += consumed
       remaining -= consumed
       lastLot.quantity -= consumed
-      if (lastLot.quantity <= 0) lots.pop()
+      if (lastLot.quantity <= 0) {
+        activeDisplayQuantityIndexes.delete(lastLot.operationIndex)
+        lots.pop()
+      }
     }
 
     if (coveredQuantity === 0) {
@@ -292,8 +302,12 @@ export const calculateOperationVariations = (operations: Operation[], unit: Disp
     ...operation,
     variationAmount: variations.get(index)?.amount ?? null,
     variationPercent: variations.get(index)?.percent ?? null,
-    ...(displayQuantities.has(index) && lots.some(lot => lot.operationIndex === index && lot.quantity > 0)
-      ? { displayQuantity: displayQuantities.get(index), displayQuantityTitle: displayQuantityTitles.get(index) }
+    ...(displayQuantities.has(index)
+      ? {
+        displayQuantity: activeDisplayQuantityIndexes.has(index) ? displayQuantities.get(index) : undefined,
+        displayQuantityTitle: displayQuantityTitles.get(index),
+        displayQuantityAddition: displayQuantityAdditions.get(index)
+      }
       : {})
   }))
 }

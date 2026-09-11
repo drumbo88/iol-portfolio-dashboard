@@ -101,7 +101,7 @@ export default function App() {
     {error && <div className="error">{error}</div>}
     {loading ? <div className="loading">Cargando portfolio…</div> : <main>
       <PortfolioSummary total={total} account={account} displayUnit={displayUnit} rates={rates} obtainedPerformance={obtainedPerformance} currentPerformance={currentPerformance} />
-      <HoldingsTable positions={positions} onPositionDoubleClick={openPositionDetails} displayUnit={displayUnit} rates={rates} operations={operations} />
+      <HoldingsTable positions={positions} onPositionDoubleClick={openPositionDetails} displayUnit={displayUnit} rates={rates} operations={operations} market={market} />
       <PreviousHoldingsTable positions={previousPositions} operations={operations} displayUnit={displayUnit} rates={rates} onPositionDoubleClick={openPositionDetails} />
 
       <section className="grid">

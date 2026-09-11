@@ -96,9 +96,24 @@ export type Operation = {
 export type OperationWithDisplayQuantity = Operation & {
   displayQuantity?: number
   displayQuantityTitle?: string
+  displayQuantityAddition?: number
 }
 
 export type OperationsResponse = {
   operaciones?: Operation[]
   [key: string]: unknown
+}
+
+export type PerformanceMonth = {
+  key: string
+  label: string
+  price: number | null
+  variationPercent: number | null
+  reference?: boolean
+}
+
+export type PerformanceHistory = {
+  symbol: string
+  reference?: PerformanceMonth
+  months: PerformanceMonth[]
 }

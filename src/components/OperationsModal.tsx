@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Operation, PortfolioPosition } from '../types'
 import { calculateOperationVariations, convertAmount, estimateSale, formatAmount, formatAmountAtDate, formatOperationDate, getDisplayedOperationQuantity, getOperationCode, getOperationDate, getOperationPrice, getOperationQuantity, getOperationTotal, getPositionPerformance, getRealizedPerformance, pct, type DisplayRates, type DisplayUnit } from '../utils/portfolio'
 
@@ -13,10 +13,18 @@ type OperationsModalProps = {
 }
 
 export function OperationsModal({ position, operations, loading, market, displayUnit, rates, onClose }: OperationsModalProps) {
-  const [saleQuantityInput, setSaleQuantityInput] = useState('')
+  const [saleQuantityInput, setSaleQuantityInput] = useState(() => {
+    const quantity = Number(position.cantidad ?? 0)
+    return quantity > 0 ? String(quantity) : ''
+  })
   const [salePriceInput, setSalePriceInput] = useState('')
   const [sort, setSort] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' })
   const symbol = position.titulo?.simbolo ?? ''
+  useEffect(() => {
+    const quantity = Number(position.cantidad ?? 0)
+    setSaleQuantityInput(quantity > 0 ? String(quantity) : '')
+    setSalePriceInput('')
+  }, [symbol, position.cantidad])
   const matchingOperations = operations.filter((operation) => {
     const operationSymbol = String(operation.titulo?.simbolo ?? operation.simbolo ?? '').toUpperCase()
     const normalizedSymbol = symbol.toUpperCase()
@@ -25,7 +33,9 @@ export function OperationsModal({ position, operations, loading, market, display
   })
   const assetOperations = calculateOperationVariations(matchingOperations, displayUnit, rates)
     .sort((a, b) => new Date(getOperationDate(b)).getTime() - new Date(getOperationDate(a)).getTime())
-  const saleQuantity = Number(saleQuantityInput.replace(',', '.')) || 0
+  const saleQuantity = saleQuantityInput.trim() === ''
+    ? Number(position.cantidad ?? 0)
+    : Number(saleQuantityInput.replace(',', '.')) || 0
   const currentPrice = Number(position.ultimoPrecio ?? 0)
   const salePrice = Number(salePriceInput.replace(',', '.')) || currentPrice
   const saleEstimate = useMemo(() => estimateSale(matchingOperations, saleQuantity, salePrice, displayUnit, rates), [matchingOperations, saleQuantity, salePrice, displayUnit, rates])
@@ -71,7 +81,7 @@ export function OperationsModal({ position, operations, loading, market, display
                 return <tr key={`${operation.numero ?? 'operacion'}-${index}`}>
                 <td><span className="op-code">{getOperationCode(operation)}</span></td>
                 <td>{formatOperationDate(getOperationDate(operation))}</td>
-                <td title={operation.displayQuantityTitle}>{getDisplayedOperationQuantity(operation).toLocaleString('es-AR')}{operation.displayQuantityTitle ? '*' : ''}</td>
+                <td title={operation.displayQuantityTitle}>{getDisplayedOperationQuantity(operation).toLocaleString('es-AR')}{operation.displayQuantityTitle && operation.displayQuantityAddition ? <span className="split-addition"> +{operation.displayQuantityAddition.toLocaleString('es-AR')}</span> : null}</td>
                 <td>{formatAmountAtDate(getOperationPrice(operation), 'ARS', rates, getOperationDate(operation))}</td>
                 <td>{formatAmountAtDate(getOperationTotal(operation), 'ARS', rates, getOperationDate(operation))}</td>
                 <td className={variationAmount === null ? undefined : variationAmount >= 0 ? 'positive' : 'negative'}>{variationAmount === null ? '—' : formatAmount(convertAmount(variationAmount, 'ARS', rates, getOperationDate(operation), displayUnit), 'ARS')}</td>
@@ -83,7 +93,7 @@ export function OperationsModal({ position, operations, loading, market, display
         </div>
 
         <aside className="modal-side">
-          {saleQuantity > 0 && <div className="sale-estimator">
+          {position.cantidad > 0 && <div className="sale-estimator">
               <h4>Estimar venta</h4>
               <label htmlFor="sale-quantity">Cantidad a vender</label>
               <input
@@ -91,7 +101,7 @@ export function OperationsModal({ position, operations, loading, market, display
                 type="number"
                 value={saleQuantityInput}
                 onChange={event => setSaleQuantityInput(event.target.value.replace(/[^\d.,]/g, ''))}
-                placeholder={Number(position.cantidad ?? 0).toString()}
+                placeholder="0"
               />
               <label htmlFor="sale-price">Precio</label>
               <input
